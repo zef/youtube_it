@@ -106,8 +106,8 @@ class YouTubeIt
       client.upload(data, opts)
     end
 
-    def video_update(video_id, opts = {})
-      client.update(video_id, opts)
+    def video_update(video_id, opts = {}, partial_update = false)
+      client.update(video_id, opts, partial_update)
     end
 
     def captions_update(video_id, data, opts = {})

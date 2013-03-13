@@ -102,15 +102,29 @@ class YouTubeIt
       # The following are optional attributes:
       #   :private
       # When the authentication credentials are incorrect, an AuthenticationError will be raised.
-      def update(video_id, options)
-        @opts = { :title => '',
-                  :description => '',
-                  :category => 'People',
-                  :keywords => [] }.merge(options)
+      #
+      # When partial_update is true, only the attributes passed are required.
+      # This uses the experimental partial update API:
+      # https://developers.google.com/youtube/2.0/developers_guide_protocol_partial_updates
+      def update(video_id, options, partial_update = false)
+        update_url    = "/feeds/api/users/default/uploads/%s" % video_id
 
-        update_body = video_xml
-        update_url  = "/feeds/api/users/default/uploads/%s" % video_id
-        response    = yt_session.put(update_url, update_body)
+        if partial_update
+          @opts = options
+
+          update_body   = video_xml
+          update_header = { "Content-Type" => "application/xml" }
+          response      = yt_session.patch(update_url, update_body, update_header)
+        else
+          @opts = { :title => '',
+                    :description => '',
+                    :category => 'People',
+                    :keywords => [] }.merge(options)
+
+          update_body = video_xml
+          response    = yt_session.put(update_url, update_body)
+        end
+
 
         return YouTubeIt::Parser::VideoFeedParser.new(response.body).parse rescue nil
       end
@@ -532,7 +546,7 @@ class YouTubeIt
       end
 
       # TODO: isn't there a cleaner way to output top-notch XML without requiring stuff all over the place?
-      def video_xml
+      def video_xml(custom_entry_attributes = {})
         b = Builder::XmlMarkup.new
         b.instruct!
         b.entry(:xmlns => "http://www.w3.org/2005/Atom",
@@ -541,10 +555,10 @@ class YouTubeIt
           'xmlns:gml' => 'http://www.opengis.net/gml',
           'xmlns:georss' => 'http://www.georss.org/georss') do | m |
           m.tag!("media:group") do | mg |
-            mg.tag!("media:title", @opts[:title], :type => "plain")
-            mg.tag!("media:description", @opts[:description], :type => "plain")
-            mg.tag!("media:keywords", @opts[:keywords].join(","))
-            mg.tag!('media:category', @opts[:category], :scheme => "http://gdata.youtube.com/schemas/2007/categories.cat")
+            mg.tag!("media:title", @opts[:title], :type => "plain") if @opts[:title]
+            mg.tag!("media:description", @opts[:description], :type => "plain") if @opts[:description]
+            mg.tag!("media:keywords", @opts[:keywords].join(",")) if @opts[:keywords]
+            mg.tag!('media:category', @opts[:category], :scheme => "http://gdata.youtube.com/schemas/2007/categories.cat") if @opts[:category]
             mg.tag!('yt:private') if @opts[:private]
             mg.tag!('media:category', @opts[:dev_tag], :scheme => "http://gdata.youtube.com/schemas/2007/developertags.cat") if @opts[:dev_tag]
           end
